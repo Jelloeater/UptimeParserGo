@@ -4,11 +4,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 	"os"
-	"./libs"
 	"fmt"
+	"go/types"
+	"strconv"
+	"time"
 )
 
-func main() {
+func main() { // Main always gets called as the entry point
 	log.SetReportCaller(true)
 
 	app := cli.NewApp()
@@ -52,10 +54,8 @@ func main() {
 			Usage:   "export as XML",
 			Category: "output",
 			Action: func(c *cli.Context) error {
-				args := c.Args() // Converts first arg from string to int
-				log.Info(args)
 
-				libs.GenerateXML()
+				//output.GenerateXML()
 
 				return nil
 			},
@@ -67,7 +67,7 @@ func main() {
 			Usage:   "export as JSON",
 			Category: "output",
 			Action: func(c *cli.Context) error {
-				args := c.Args() // Converts first arg from string to int
+				args := c.Args()
 				log.Info(args)
 
 				//DO WORK HERE
@@ -102,4 +102,40 @@ func main() {
 	}
 
 	log.Info("EOP")
+}
+type Device struct{
+	name string
+	up_time types.Nil
+	snmp_comm string
+
+}
+//Constructor
+func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
+	obj := new(Device)
+	obj.name = Snmp_comm_in
+	obj.snmp_comm = Name_in
+	return *obj
+}
+func (d *Device) UpdateUptime(snmp_port_in int){
+	var snmpPort int
+	if snmp_port_in == 0{snmpPort = 161
+	}else {snmpPort = snmp_port_in}
+	log.Debug("SNMP Port:" + strconv.Itoa(snmpPort))
+
+
+}
+
+func (d *Device) IsOverXHours(overHoursIn int)  {
+	var overHours int
+	if overHoursIn == 0{overHours = 24
+	}else {overHours = overHoursIn}
+	log.Debug("Over hour amount: " + strconv.Itoa(overHours))
+
+	//TODO Compare device current time with uptime delta
+	t := time.Now()
+	log.Debug(t)
+}
+func GenerateXML()  {
+	log.Debug("Start XML generation")
+	println("SOME XML")
 }
