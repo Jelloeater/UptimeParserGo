@@ -5,7 +5,6 @@ import (
 	"github.com/urfave/cli"
 	"os"
 	"fmt"
-	"go/types"
 	"strconv"
 	"time"
 	snmp "github.com/soniah/gosnmp"
@@ -102,10 +101,7 @@ func main() { // Main always gets called as the entry point
 		log.Fatal(err)
 	}
 
-	x := Device{}
-	x.snmp_comm = "public"
-	x.name = "192.168.1.1"
-	x.GetSNMP()
+	MainLogic()
 	log.Info("EOP")
 }
 
@@ -113,10 +109,9 @@ func main() { // Main always gets called as the entry point
 
 
 type Device struct{
-	name string
-	up_time types.Nil
-	snmp_comm string
-	snmp_port int
+	name        string
+	up_time_sec uint
+	snmp_comm   string
 
 }
 //Constructor
@@ -124,11 +119,11 @@ func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
 	obj := new(Device)
 	obj.name = Snmp_comm_in
 	obj.snmp_comm = Name_in
-	obj.snmp_port = 161
 	return *obj
 }
 func (d *Device) UpdateUptime(){
 	log.Debug("SNMP Port")
+	d.up_time_sec = d.GetSNMP().(uint)/100
 
 
 
@@ -177,26 +172,32 @@ func (d *Device) IsOverXHours(overHoursIn int)  {
 	log.Debug(t)
 }
 
-type MainLogic struct {
+
+func MainLogic()  {
+	x := Device{}
+	x.snmp_comm = "public"
+	x.name = "192.168.1.1"
+	x.UpdateUptime()
+	log.Debug("")
+}
+
+func UpdateDeviceObjUptime(device_obj_in Device) Device{
+
+	return device_obj_in
+}
+
+//GenerateSensorData Takes in a list of devices (slice) and output a dictionary (map key-value pair)
+func GenerateSensorData (device_list_in []Device)map[string]int{
+
+	// TODO write go routine, see python script (UptimeParser) for reference in other repo
+
+	return map[string]int{"foo": 1, "bar": 2}
+}
+
+func GenerateXML (){
 
 }
 
-func (MainLogic) MainLogic()  {
-
-}
-
-func (MainLogic) UpdateDeviceObjUptime(){
-
-}
-
-func (MainLogic) GenerateSensorData (){
-
-}
-
-func (MainLogic) GenerateXML (){
-
-}
-
-func (MainLogic) GenerateJSON()  {
+func GenerateJSON()  {
 
 }
