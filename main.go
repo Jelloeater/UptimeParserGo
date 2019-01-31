@@ -8,6 +8,7 @@ import (
 	"go/types"
 	"strconv"
 	"time"
+	snmp "github.com/soniah/gosnmp"
 )
 
 func main() { // Main always gets called as the entry point
@@ -101,12 +102,21 @@ func main() { // Main always gets called as the entry point
 		log.Fatal(err)
 	}
 
+	x := Device{}
+	x.snmp_comm = "public"
+	x.name = "192.168.1.1"
+	x.GetSNMP()
 	log.Info("EOP")
 }
+
+
+
+
 type Device struct{
 	name string
 	up_time types.Nil
 	snmp_comm string
+	snmp_port int
 
 }
 //Constructor
@@ -114,17 +124,48 @@ func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
 	obj := new(Device)
 	obj.name = Snmp_comm_in
 	obj.snmp_comm = Name_in
+	obj.snmp_port = 161
 	return *obj
 }
-func (d *Device) UpdateUptime(snmp_port_in int){
-	var snmpPort int
-	if snmp_port_in == 0{snmpPort = 161
-	}else {snmpPort = snmp_port_in}
-	log.Debug("SNMP Port:" + strconv.Itoa(snmpPort))
+func (d *Device) UpdateUptime(){
+	log.Debug("SNMP Port")
+
 
 
 }
 
+//GetSNMP Defaults to getting up time if no oid is specified
+func (d *Device) GetSNMP(oid_in ...string)interface{}{
+	var oids []string
+	if oid_in ==nil {
+		oids = []string{"1.3.6.1.2.1.1.3.0"}
+	}else {oids = oid_in}
+
+	// build our own GoSNMP struct, rather than using snmp.Default
+	params := &snmp.GoSNMP{
+		Target:    d.name,
+		Port:      161, // When trying to pass a uint16 or convert from int to uint16,
+						// the call freezes, just going to hard code it
+		Version:   snmp.Version2c,
+		Timeout:   time.Duration(30) * time.Second,
+		Community: d.snmp_comm,
+	}
+	err := params.Connect()
+	if err != nil {
+		log.Fatalf("Connect() err: %v", err)
+	}
+	defer params.Conn.Close()
+
+	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
+
+	if err2 != nil {
+		log.Fatalf("Get() err: %v", err2)
+	}
+	log.Debug(result.Variables[0].Value)
+	return result.Variables[0].Value
+
+
+}
 func (d *Device) IsOverXHours(overHoursIn int)  {
 	var overHours int
 	if overHoursIn == 0{overHours = 24
@@ -135,7 +176,27 @@ func (d *Device) IsOverXHours(overHoursIn int)  {
 	t := time.Now()
 	log.Debug(t)
 }
-func GenerateXML()  {
-	log.Debug("Start XML generation")
-	println("SOME XML")
+
+type MainLogic struct {
+
+}
+
+func (MainLogic) MainLogic()  {
+
+}
+
+func (MainLogic) UpdateDeviceObjUptime(){
+
+}
+
+func (MainLogic) GenerateSensorData (){
+
+}
+
+func (MainLogic) GenerateXML (){
+
+}
+
+func (MainLogic) GenerateJSON()  {
+
 }
