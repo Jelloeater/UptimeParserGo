@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 	snmp "github.com/soniah/gosnmp"
+	"github.com/beevik/etree"
 )
 
 func main() { // Main always gets called as the entry point
@@ -22,7 +23,7 @@ func main() { // Main always gets called as the entry point
 
 	// Setup flags here
 	var DebugMode bool
-	var IpAddress string
+	var CidrIpAddress string
 	var Snmp string
 	flags := []cli.Flag{
 		cli.BoolFlag{
@@ -35,7 +36,7 @@ func main() { // Main always gets called as the entry point
 
 			Name:        "ip, i",
 			Usage:       "IP address to scan",
-			Destination: &IpAddress,
+			Destination: &CidrIpAddress,
 		},
 		cli.StringFlag{
 
@@ -55,8 +56,8 @@ func main() { // Main always gets called as the entry point
 			Category: "output",
 			Action: func(c *cli.Context) error {
 
-				//output.GenerateXML()
-
+				output := MainLogic(CidrIpAddress,Snmp)
+				print(output)
 				return nil
 			},
 		},
@@ -100,8 +101,6 @@ func main() { // Main always gets called as the entry point
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	MainLogic()
 	log.Info("EOP")
 }
 
@@ -122,7 +121,6 @@ func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
 	return *obj
 }
 func (d *Device) UpdateUptime(){
-	log.Debug("SNMP Port")
 	d.up_time_sec = d.GetSNMP().(uint)/100
 
 
@@ -173,12 +171,27 @@ func (d *Device) IsOverXHours(overHoursIn int)  {
 }
 
 
-func MainLogic()  {
+func MainLogic(ip_CIDR_in string, snmp_in string)  string{
+
+	GenerateXML() // Testing
+
+
+	var outputToConsole string
+	// TODO add list of devices
 	x := Device{}
-	x.snmp_comm = "public"
-	x.name = "192.168.1.1"
+	x.name = ip_CIDR_in
+	x.snmp_comm = snmp_in
 	x.UpdateUptime()
+
+	// TODO Take list of devices and update uptime on all of them at once 'multi-threaded'
+
+	// TODO Compare all the sensors and then output the results as XML
+	// Ex {"Up Device count": up_device_count, "Device over time limit": devices_over_time_limit}
+
+
 	log.Debug("")
+
+	return outputToConsole
 }
 
 func UpdateDeviceObjUptime(device_obj_in Device) Device{
@@ -194,8 +207,23 @@ func GenerateSensorData (device_list_in []Device)map[string]int{
 	return map[string]int{"foo": 1, "bar": 2}
 }
 
-func GenerateXML (){
+func GenerateXML ()string{
+	doc := etree.NewDocument()
+	prtg := doc.CreateElement("prtg")
+	result := prtg.CreateElement("result")
 
+	// TODO Need to write for loop here for each element
+	result1 := result.CreateElement("channel")
+	result1.CreateText("First channel")
+	value1 := result.CreateElement("value")
+	value1.CreateText("20")
+
+	text := prtg.CreateElement("text")
+	text.CreateText("Ok")
+
+	doc.Indent(0)
+	XmlOutput,_ := doc.WriteToString()
+	return XmlOutput
 }
 
 func GenerateJSON()  {
