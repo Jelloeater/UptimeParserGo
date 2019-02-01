@@ -172,25 +172,28 @@ func (d *Device) IsOverXHours(overHoursIn int)  {
 
 
 func MainLogic(ip_CIDR_in string, snmp_in string)  string{
-
-	GenerateXML() // Testing
-
-
 	var outputToConsole string
+	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
+
+
 	// TODO add list of devices
+	//var device_list []Device
+
+
 	x := Device{}
-	x.name = ip_CIDR_in
+	x.name = "192.168.1.1"
 	x.snmp_comm = snmp_in
 	x.UpdateUptime()
 
 	// TODO Take list of devices and update uptime on all of them at once 'multi-threaded'
 
 	// TODO Compare all the sensors and then output the results as XML
-	// Ex {"Up Device count": up_device_count, "Device over time limit": devices_over_time_limit}
 
 
+	XML_output["Up Device count"]  = 42
+	XML_output["Device over time limit"]  = 24
+	outputToConsole = GenerateXML(XML_output, "Ok")
 	log.Debug("")
-
 	return outputToConsole
 }
 
@@ -207,19 +210,21 @@ func GenerateSensorData (device_list_in []Device)map[string]int{
 	return map[string]int{"foo": 1, "bar": 2}
 }
 
-func GenerateXML ()string{
+//GenerateXML Takes key value pairs and output XML that PRTG can ingest
+func GenerateXML (data_in map[string]int,msg_in string)string{
 	doc := etree.NewDocument()
 	prtg := doc.CreateElement("prtg")
 	result := prtg.CreateElement("result")
 
-	// TODO Need to write for loop here for each element
-	result1 := result.CreateElement("channel")
-	result1.CreateText("First channel")
-	value1 := result.CreateElement("value")
-	value1.CreateText("20")
+	for k, v := range data_in{
+		chan_ele := result.CreateElement("channel")
+		chan_ele.CreateText(k)
+		val_ele := result.CreateElement("value")
+		val_ele.CreateText(strconv.Itoa(v))
+	}
 
 	text := prtg.CreateElement("text")
-	text.CreateText("Ok")
+	text.CreateText(msg_in)
 
 	doc.Indent(0)
 	XmlOutput,_ := doc.WriteToString()
