@@ -9,6 +9,7 @@ import (
 	"time"
 	snmp "github.com/soniah/gosnmp"
 	"github.com/beevik/etree"
+	"net"
 )
 
 func main() { // Main always gets called as the entry point
@@ -69,7 +70,8 @@ func main() { // Main always gets called as the entry point
 			Category: "output",
 			Action: func(c *cli.Context) error {
 				args := c.Args()
-				log.Info(args)
+				log.Debug(args)
+				log.Fatal("NOT Implemented yet :(")
 
 				//DO WORK HERE
 				return nil
@@ -172,27 +174,44 @@ func (d *Device) IsOverXHours(overHoursIn int)  {
 
 
 func MainLogic(ip_CIDR_in string, snmp_in string)  string{
-
-	GenerateXML() // Testing
-
-
 	var outputToConsole string
+	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
+
+	var IPlist, err = Hosts(ip_CIDR_in)
+
+	if err != nil{
+		log.Fatal("Invalid IP")
+	}
+	log.Debug(IPlist)
+
+
+
+
 	// TODO add list of devices
+	//var device_list []Device
+
+
+
+
+
+
 	x := Device{}
-	x.name = ip_CIDR_in
+	x.name = "192.168.1.1"
 	x.snmp_comm = snmp_in
 	x.UpdateUptime()
 
 	// TODO Take list of devices and update uptime on all of them at once 'multi-threaded'
 
 	// TODO Compare all the sensors and then output the results as XML
-	// Ex {"Up Device count": up_device_count, "Device over time limit": devices_over_time_limit}
 
 
+	XML_output["Up Device count"]  = 42
+	XML_output["Device over time limit"]  = 24
+	outputToConsole = GenerateXML(XML_output, "Ok")
 	log.Debug("")
-
 	return outputToConsole
 }
+
 
 func UpdateDeviceObjUptime(device_obj_in Device) Device{
 
@@ -207,19 +226,52 @@ func GenerateSensorData (device_list_in []Device)map[string]int{
 	return map[string]int{"foo": 1, "bar": 2}
 }
 
-func GenerateXML ()string{
+
+func Hosts(cidr string) ([]string, error) {
+	ip, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, err
+	}
+	var mask = cidr[len(cidr)-2:]
+	if mask == "32"{
+		var ips []string
+		var singleIp = cidr[:len(cidr)-3]
+		ips = append(ips, singleIp)
+		return ips, nil
+	}
+
+	var ips []string
+	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); host_inc(ip) {
+		ips = append(ips, ip.String())
+	}
+
+	return ips[1 : len(ips)-1], nil // pop network address and broadcast address
+}
+
+func host_inc(ip net.IP) {
+	for i := len(ip) - 1; i >= 0; i-- {
+		ip[i]++
+		if ip[i] > 0 {
+			break
+		}
+	}
+}
+
+//GenerateXML Takes key value pairs and output XML that PRTG can ingest
+func GenerateXML (data_in map[string]int,msg_in string)string{
 	doc := etree.NewDocument()
 	prtg := doc.CreateElement("prtg")
 	result := prtg.CreateElement("result")
 
-	// TODO Need to write for loop here for each element
-	result1 := result.CreateElement("channel")
-	result1.CreateText("First channel")
-	value1 := result.CreateElement("value")
-	value1.CreateText("20")
+	for k, v := range data_in{
+		chan_ele := result.CreateElement("channel")
+		chan_ele.CreateText(k)
+		val_ele := result.CreateElement("value")
+		val_ele.CreateText(strconv.Itoa(v))
+	}
 
 	text := prtg.CreateElement("text")
-	text.CreateText("Ok")
+	text.CreateText(msg_in)
 
 	doc.Indent(0)
 	XmlOutput,_ := doc.WriteToString()
