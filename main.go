@@ -2,15 +2,16 @@ package main
 
 import (
 	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli"
-	"os"
 	"fmt"
 	"strconv"
 	"time"
 	snmp "github.com/soniah/gosnmp"
 	"github.com/beevik/etree"
 	"net"
+	"github.com/urfave/cli"
+	"os"
 )
+
 
 func main() { // Main always gets called as the entry point
 	log.SetReportCaller(true)
@@ -106,87 +107,10 @@ func main() { // Main always gets called as the entry point
 	log.Info("EOP")
 }
 
-// For Multithread processing
-func update_single_device_uptime(device_in Device, out_dev chan Device) {
-	device_in.UpdateUptime()
-	out_dev <- device_in
-}
-
-
-type Device struct{
-	//TODO maybe change uptime to a signed int and use -1 to indicate error?
-	name        string
-	up_time_sec uint // Value of 0 == bad lookup
-	snmp_comm   string
-
-}
-//Constructor
-func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
-	obj := new(Device)
-	obj.name = Snmp_comm_in
-	obj.snmp_comm = Name_in
-	return *obj
-}
-func (d *Device) UpdateUptime(){
-	d.up_time_sec = d.GetSNMP().(uint)/100
-}
-
-//GetSNMP Defaults to getting up time if no oid is specified
-func (d *Device) GetSNMP(oid_in ...string)interface{}{
-	var oids []string
-	if oid_in ==nil {
-		oids = []string{"1.3.6.1.2.1.1.3.0"}
-	}else {oids = oid_in}
-
-	// build our own GoSNMP struct, rather than using snmp.Default
-	params := &snmp.GoSNMP{
-		Target:    d.name,
-		Port:      161, // When trying to pass a uint16 or convert from int to uint16,
-						// the call freezes, just going to hard code it
-		Version:   snmp.Version2c,
-		Timeout:   time.Duration(5) * time.Second,
-		Community: d.snmp_comm,
-	}
-	log.Debug("Trying: " + d.name)
-	err := params.Connect()
-	if err != nil {
-		log.Error("Connect() err: %v", err) // Normally this would log as a FATAL
-	}
-	defer params.Conn.Close()
-
-	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
-
-	if err2 != nil {
-		log.Error("Get() err: ", err2)
-	}
-
-
-	if err!=nil || err2 != nil{
-		return uint(0) // Normally we would return a better value, but we will deal with it up stream
-	}else {
-		log.Debug("Result:")
-		log.Debug(result.Variables[0].Value)
-		return result.Variables[0].Value
-	}
-
-
-}
-func (d *Device) IsOverXHours(overHoursIn int)  {
-	var overHours int
-	if overHoursIn == 0{overHours = 24
-	}else {overHours = overHoursIn}
-	log.Debug("Over hour amount: " + strconv.Itoa(overHours))
-
-	//TODO Compare device current time with uptime delta
-	t := time.Now()
-	log.Debug(t)
-}
-
-
 func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 	// Setup output variables ahead of time
 	var outputToConsole string
-	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
+
 
 	// Generate list of IP addresses from console input
 	var IPlist, err = Hosts(ip_CIDR_in)
@@ -209,17 +133,17 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 	log.Debug("")
 
 
-	// TODO Take list of devices and update uptime on all of them at once 'multi-threaded'
 
 	// TODO Compare all the sensors and then output the results as XML
 
-
+	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
 	XML_output["Up Device count"]  = 42
 	XML_output["Device over time limit"]  = 24
 	outputToConsole = GenerateXML(XML_output, "Ok")
 	log.Debug("")
 	return outputToConsole
 }
+
 
 
 func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
@@ -234,35 +158,34 @@ func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
 	// Dispatch work to threads
 	log.Info("Starting work...")
 	for i, item := range device_list_in {
-		go update_single_device_uptime(item, chan_list[i])
+		go Update_single_device_uptime(item, chan_list[i])
 	}
 
 	// Generate list of devices for output
-	log.Info("Generating output...")
-	var device_list_out []Device
+	log.Info("Merging channels...")
+	var device_list_proc []Device
 	for _, item := range chan_list {
-		device_list_out = append(device_list_out, <-item)
+		device_list_proc = append(device_list_proc, <-item)
 	}
 
 	// Print Debug output
-	log.Debug("Printing debug output...")
-	for _, i := range device_list_out {
-		if i.up_time_sec != 0 {
-			log.Debug("Name: " + i.name + " Uptime:" + fmt.Sprint(i.up_time_sec))
+	log.Info("Cleaning output...")
+	var device_list_out []Device
+	for _, item := range device_list_proc {
+		if item.up_time_sec != 0 {
+			device_list_out = append(device_list_out, item)
+			log.Info("Name: " + item.name + " Uptime:" + fmt.Sprint(item.up_time_sec))
 		}
 	}
 
 	return device_list_out
 }
 
-//GenerateSensorData Takes in a list of devices (slice) and output a dictionary (map key-value pair)
-func GenerateSensorData (device_list_in []Device)map[string]int{
-
-	// TODO write go routine, see python script (UptimeParser) for reference in other repo
-
-	return map[string]int{"foo": 1, "bar": 2}
+// For Multithread processing
+func Update_single_device_uptime(device_in Device, out_dev chan Device) {
+	device_in.UpdateUptime()
+	out_dev <- device_in
 }
-
 
 func Hosts(cidr string) ([]string, error) {
 	ip, ipnet, err := net.ParseCIDR(cidr)
@@ -318,3 +241,77 @@ func GenerateXML (data_in map[string]int,msg_in string)string{
 func GenerateJSON()  {
 
 }
+
+type Device struct {
+	//TODO maybe change uptime to a signed int and use -1 to indicate error?
+	name        string
+	up_time_sec uint // Value of 0 == bad lookup
+	snmp_comm   string
+}
+
+//Constructor
+func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
+	obj := new(Device)
+	obj.name = Snmp_comm_in
+	obj.snmp_comm = Name_in
+	return *obj
+}
+func (d *Device) UpdateUptime() {
+	d.up_time_sec = d.GetSNMP().(uint) / 100
+}
+
+//GetSNMP Defaults to getting up time if no oid is specified
+func (d *Device) GetSNMP(oid_in ...string) interface{} {
+	var oids []string
+	if oid_in == nil {
+		oids = []string{"1.3.6.1.2.1.1.3.0"}
+	} else {
+		oids = oid_in
+	}
+
+	// build our own GoSNMP struct, rather than using snmp.Default
+	params := &snmp.GoSNMP{
+		Target: d.name,
+		Port:   161, // When trying to pass a uint16 or convert from int to uint16,
+		// the call freezes, just going to hard code it
+		Version:   snmp.Version2c,
+		Timeout:   time.Duration(5) * time.Second,
+		Community: d.snmp_comm,
+	}
+	log.Debug("Trying: " + d.name)
+	err := params.Connect()
+	if err != nil {
+		log.Error("Connect() err: %v", err) // Normally this would log as a FATAL
+	}
+	defer params.Conn.Close()
+
+	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
+
+	if err2 != nil {
+		log.Warn("Get() err: ", d.name, " - ", err2)
+	}
+
+	if err != nil || err2 != nil {
+		return uint(0) // Normally we would return a better value, but we will deal with it up stream
+	} else {
+		log.Debug("Result:")
+		log.Debug(result.Variables[0].Value)
+		return result.Variables[0].Value
+	}
+
+}
+func (d *Device) IsOverXHours(overHoursIn int) {
+	var overHours int
+	if overHoursIn == 0 {
+		overHours = 24
+	} else {
+		overHours = overHoursIn
+	}
+	log.Debug("Over hour amount: " + strconv.Itoa(overHours))
+
+	//TODO Compare device current time with uptime delta
+	t := time.Now()
+	log.Debug(t)
+}
+
+
