@@ -110,8 +110,9 @@ func main() { // Main always gets called as the entry point
 
 
 type Device struct{
+	//TODO maybe change uptime to a signed int and use -1 to indicate error?
 	name        string
-	up_time_sec uint
+	up_time_sec uint // Value of 0 == bad lookup
 	snmp_comm   string
 
 }
@@ -142,19 +143,26 @@ func (d *Device) GetSNMP(oid_in ...string)interface{}{
 		Timeout:   time.Duration(5) * time.Second,
 		Community: d.snmp_comm,
 	}
+	log.Debug("Trying: " + d.name)
 	err := params.Connect()
 	if err != nil {
-		log.Error("Connect() err: %v", err)
+		log.Error("Connect() err: %v", err) // Normally this would log as a FATAL
 	}
 	defer params.Conn.Close()
 
 	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
 
 	if err2 != nil {
-		log.Fatal("Get() err: %v", err2)
+		log.Error("Get() err: %v", err2)
 	}
-	log.Debug(result.Variables[0].Value)
-	return result.Variables[0].Value
+
+
+	if err!=nil || err2 != nil{
+		return uint(0) // Normally we would return a better value, but we will deal with it up stream
+	}else {
+		log.Debug(result.Variables[0].Value)
+		return result.Variables[0].Value
+	}
 
 
 }
