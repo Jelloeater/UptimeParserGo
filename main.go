@@ -124,9 +124,6 @@ func (d *Device) NewDevice(Name_in string, Snmp_comm_in string) Device {
 }
 func (d *Device) UpdateUptime(){
 	d.up_time_sec = d.GetSNMP().(uint)/100
-
-
-
 }
 
 //GetSNMP Defaults to getting up time if no oid is specified
@@ -142,19 +139,19 @@ func (d *Device) GetSNMP(oid_in ...string)interface{}{
 		Port:      161, // When trying to pass a uint16 or convert from int to uint16,
 						// the call freezes, just going to hard code it
 		Version:   snmp.Version2c,
-		Timeout:   time.Duration(30) * time.Second,
+		Timeout:   time.Duration(5) * time.Second,
 		Community: d.snmp_comm,
 	}
 	err := params.Connect()
 	if err != nil {
-		log.Fatalf("Connect() err: %v", err)
+		log.Error("Connect() err: %v", err)
 	}
 	defer params.Conn.Close()
 
 	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
 
 	if err2 != nil {
-		log.Fatalf("Get() err: %v", err2)
+		log.Fatal("Get() err: %v", err2)
 	}
 	log.Debug(result.Variables[0].Value)
 	return result.Variables[0].Value
@@ -184,21 +181,18 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 	}
 	log.Debug(IPlist)
 
+	var device_list []Device
 
+	for _, i := range IPlist{
+		x := Device{}
+		x.name = i
+		x.snmp_comm = snmp_in
+		device_list = append(device_list, x)
 
+	}
+	device_list = UpdateDeviceObjUptimeList(device_list)
+	log.Debug("")
 
-	// TODO add list of devices
-	//var device_list []Device
-
-
-
-
-
-
-	x := Device{}
-	x.name = "192.168.1.1"
-	x.snmp_comm = snmp_in
-	x.UpdateUptime()
 
 	// TODO Take list of devices and update uptime on all of them at once 'multi-threaded'
 
@@ -213,9 +207,14 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 }
 
 
-func UpdateDeviceObjUptime(device_obj_in Device) Device{
+func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
+	var device_list_out []Device
 
-	return device_obj_in
+	for _, i := range device_list_in{
+		i.UpdateUptime()
+		device_list_out = append(device_list_out, i)
+	}
+	return device_list_out
 }
 
 //GenerateSensorData Takes in a list of devices (slice) and output a dictionary (map key-value pair)
