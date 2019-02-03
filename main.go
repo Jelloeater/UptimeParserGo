@@ -179,25 +179,27 @@ func (d *Device) IsOverXHours(overHoursIn int)  {
 
 
 func MainLogic(ip_CIDR_in string, snmp_in string)  string{
+	// Setup output variables ahead of time
 	var outputToConsole string
 	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
 
+	// Generate list of IP addresses from console input
 	var IPlist, err = Hosts(ip_CIDR_in)
-
 	if err != nil{
 		log.Fatal("Invalid IP")
 	}
+
+	// Generate list of devices
 	log.Debug(IPlist)
-
 	var device_list []Device
-
 	for _, i := range IPlist{
 		x := Device{}
 		x.name = i
 		x.snmp_comm = snmp_in
 		device_list = append(device_list, x)
-
 	}
+
+	// Update list of devices
 	device_list = UpdateDeviceObjUptimeList(device_list)
 	log.Debug("")
 
@@ -217,11 +219,22 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 
 func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
 	var device_list_out []Device
+	//dev_chan := make(chan []Device)
+
+
+
 
 	for _, i := range device_list_in{
 		i.UpdateUptime()
 		device_list_out = append(device_list_out, i)
 	}
+
+	//go UpdateUptimeList(Device_list_in, dev_chan)
+
+
+
+
+
 	return device_list_out
 }
 
