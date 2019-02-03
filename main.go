@@ -9,6 +9,7 @@ import (
 	"time"
 	snmp "github.com/soniah/gosnmp"
 	"github.com/beevik/etree"
+	"net"
 )
 
 func main() { // Main always gets called as the entry point
@@ -69,7 +70,8 @@ func main() { // Main always gets called as the entry point
 			Category: "output",
 			Action: func(c *cli.Context) error {
 				args := c.Args()
-				log.Info(args)
+				log.Debug(args)
+				log.Fatal("NOT Implemented yet :(")
 
 				//DO WORK HERE
 				return nil
@@ -175,9 +177,22 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 	var outputToConsole string
 	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
 
+	var IPlist, err = Hosts(ip_CIDR_in)
+
+	if err != nil{
+		log.Fatal("Invalid IP")
+	}
+	log.Debug(IPlist)
+
+
+
 
 	// TODO add list of devices
 	//var device_list []Device
+
+
+
+
 
 
 	x := Device{}
@@ -197,6 +212,7 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 	return outputToConsole
 }
 
+
 func UpdateDeviceObjUptime(device_obj_in Device) Device{
 
 	return device_obj_in
@@ -208,6 +224,37 @@ func GenerateSensorData (device_list_in []Device)map[string]int{
 	// TODO write go routine, see python script (UptimeParser) for reference in other repo
 
 	return map[string]int{"foo": 1, "bar": 2}
+}
+
+
+func Hosts(cidr string) ([]string, error) {
+	ip, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, err
+	}
+	var mask = cidr[len(cidr)-2:]
+	if mask == "32"{
+		var ips []string
+		var singleIp = cidr[:len(cidr)-3]
+		ips = append(ips, singleIp)
+		return ips, nil
+	}
+
+	var ips []string
+	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); host_inc(ip) {
+		ips = append(ips, ip.String())
+	}
+
+	return ips[1 : len(ips)-1], nil // pop network address and broadcast address
+}
+
+func host_inc(ip net.IP) {
+	for i := len(ip) - 1; i >= 0; i-- {
+		ip[i]++
+		if ip[i] > 0 {
+			break
+		}
+	}
 }
 
 //GenerateXML Takes key value pairs and output XML that PRTG can ingest
