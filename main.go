@@ -106,7 +106,11 @@ func main() { // Main always gets called as the entry point
 	log.Info("EOP")
 }
 
-
+// For Multithread processing
+func update_single_device_uptime(device_in Device)  Device{
+	device_in.UpdateUptime()
+	return device_in
+}
 
 
 type Device struct{
@@ -160,6 +164,7 @@ func (d *Device) GetSNMP(oid_in ...string)interface{}{
 	if err!=nil || err2 != nil{
 		return uint(0) // Normally we would return a better value, but we will deal with it up stream
 	}else {
+		log.Debug("Result:")
 		log.Debug(result.Variables[0].Value)
 		return result.Variables[0].Value
 	}
@@ -225,7 +230,8 @@ func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
 
 
 	for _, i := range device_list_in{
-		i.UpdateUptime()
+
+		i := update_single_device_uptime(i)
 		device_list_out = append(device_list_out, i)
 	}
 
