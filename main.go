@@ -157,7 +157,7 @@ func (d *Device) GetSNMP(oid_in ...string)interface{}{
 	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
 
 	if err2 != nil {
-		log.Error("Get() err: %v", err2)
+		log.Error("Get() err: ", err2)
 	}
 
 
@@ -223,25 +223,34 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 
 
 func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
-	var device_list_out []Device
-
-
-
-
-
-	for _, i := range device_list_in{
+	// Make list of channels
+	log.Info("Creating channels")
+	var chan_list []chan Device
+	for range device_list_in {
 		dev_chan := make(chan Device)
-		go update_single_device_uptime(i, dev_chan)
-
-		device_list_out = append(device_list_out, <-dev_chan)
-
+		chan_list = append(chan_list, dev_chan)
 	}
 
-	//go UpdateUptimeList(Device_list_in, dev_chan)
+	// Dispatch work to threads
+	log.Info("Starting work...")
+	for i, item := range device_list_in {
+		go update_single_device_uptime(item, chan_list[i])
+	}
 
+	// Generate list of devices for output
+	log.Info("Generating output...")
+	var device_list_out []Device
+	for _, item := range chan_list {
+		device_list_out = append(device_list_out, <-item)
+	}
 
-
-
+	// Print Debug output
+	log.Debug("Printing debug output...")
+	for _, i := range device_list_out {
+		if i.up_time_sec != 0 {
+			log.Debug("Name: " + i.name + " Uptime:" + fmt.Sprint(i.up_time_sec))
+		}
+	}
 
 	return device_list_out
 }
