@@ -84,7 +84,7 @@ func main() { // Main always gets called as the entry point
 	app.Before = func(c *cli.Context) error {
 		// Actions to run before running parsed commands
 		if DebugMode {
-			log.SetLevel(5)
+			log.SetLevel(5) // 5=Debug 4=Info
 			log.Info("Debug Mode")
 		} else {
 			log.SetLevel(3)
@@ -104,7 +104,7 @@ func main() { // Main always gets called as the entry point
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Info("EOP")
+	log.Debug("EOP")
 }
 
 func MainLogic(ip_CIDR_in string, snmp_in string)  string{
@@ -130,20 +130,24 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 
 	// Update list of devices
 	device_list = UpdateDeviceObjUptimeList(device_list)
-	log.Debug("")
 
+	// Generate device over limit count
+	var device_over_limit int
+	var sec_in_day = uint(60 * 60 * 24)
+	for _, i := range device_list {
+		if i.up_time_sec > sec_in_day {
+			log.Debug("Overtime - ", i.name)
+			device_over_limit = device_over_limit + 1
+		}
 
-
-	// TODO Compare all the sensors and then output the results as XML
+	}
 
 	var XML_output = map[string]int{} //Key value pairs (like a dictionary)
-	XML_output["Up Device count"]  = 42
-	XML_output["Device over time limit"]  = 24
+	XML_output["Up Device count"] = len(device_list)
+	XML_output["Device over time limit"] = device_over_limit
 	outputToConsole = GenerateXML(XML_output, "Ok")
-	log.Debug("")
 	return outputToConsole
 }
-
 
 
 func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
@@ -177,7 +181,6 @@ func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
 			log.Info("Name: " + item.name + " Uptime:" + fmt.Sprint(item.up_time_sec))
 		}
 	}
-
 	return device_list_out
 }
 
@@ -275,43 +278,29 @@ func (d *Device) GetSNMP(oid_in ...string) interface{} {
 		Port:   161, // When trying to pass a uint16 or convert from int to uint16,
 		// the call freezes, just going to hard code it
 		Version:   snmp.Version2c,
-		Timeout:   time.Duration(5) * time.Second,
+		Timeout:   time.Duration(2) * time.Second,
 		Community: d.snmp_comm,
 	}
 	log.Debug("Trying: " + d.name)
 	err := params.Connect()
 	if err != nil {
-		log.Error("Connect() err: %v", err) // Normally this would log as a FATAL
+		log.Debug("Connect() err: %v", err) // Normally this would log as a FATAL
 	}
 	defer params.Conn.Close()
 
 	result, err2 := params.Get(oids) // Get() accepts up to snmp.MAX_OIDS
 
 	if err2 != nil {
-		log.Warn("Get() err: ", d.name, " - ", err2)
+		log.Debug("Get() err: ", d.name, " - ", err2)
 	}
 
 	if err != nil || err2 != nil {
 		return uint(0) // Normally we would return a better value, but we will deal with it up stream
 	} else {
-		log.Debug("Result:")
-		log.Debug(result.Variables[0].Value)
+		log.Debug("Result: ", d.name, " ", result.Variables[0].Value)
 		return result.Variables[0].Value
 	}
 
-}
-func (d *Device) IsOverXHours(overHoursIn int) {
-	var overHours int
-	if overHoursIn == 0 {
-		overHours = 24
-	} else {
-		overHours = overHoursIn
-	}
-	log.Debug("Over hour amount: " + strconv.Itoa(overHours))
-
-	//TODO Compare device current time with uptime delta
-	t := time.Now()
-	log.Debug(t)
 }
 
 
