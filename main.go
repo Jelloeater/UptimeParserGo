@@ -107,9 +107,9 @@ func main() { // Main always gets called as the entry point
 }
 
 // For Multithread processing
-func update_single_device_uptime(device_in Device)  Device{
+func update_single_device_uptime(device_in Device, out_dev chan Device) {
 	device_in.UpdateUptime()
-	return device_in
+	out_dev <- device_in
 }
 
 
@@ -224,15 +224,17 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 
 func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
 	var device_list_out []Device
-	//dev_chan := make(chan []Device)
+
 
 
 
 
 	for _, i := range device_list_in{
+		dev_chan := make(chan Device)
+		go update_single_device_uptime(i, dev_chan)
 
-		i := update_single_device_uptime(i)
-		device_list_out = append(device_list_out, i)
+		device_list_out = append(device_list_out, <-dev_chan)
+
 	}
 
 	//go UpdateUptimeList(Device_list_in, dev_chan)
