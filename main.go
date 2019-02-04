@@ -226,9 +226,10 @@ func host_inc(ip net.IP) {
 func GenerateXML (data_in map[string]int,msg_in string)string{
 	doc := etree.NewDocument()
 	prtg := doc.CreateElement("prtg")
-	result := prtg.CreateElement("result")
+
 
 	for k, v := range data_in{
+		result := prtg.CreateElement("result")
 		chan_ele := result.CreateElement("channel")
 		chan_ele.CreateText(k)
 		val_ele := result.CreateElement("value")
