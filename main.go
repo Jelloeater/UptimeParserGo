@@ -168,8 +168,10 @@ func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
 	// Generate list of devices for output
 	log.Info("Merging channels...")
 	var device_list_proc []Device
-	for _, item := range chan_list {
+	for i, item := range chan_list {
+		log.Debug("Received: ", i)
 		device_list_proc = append(device_list_proc, <-item)
+		close(item)
 	}
 
 	// Print Debug output
