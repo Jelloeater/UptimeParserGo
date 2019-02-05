@@ -1,21 +1,21 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
 	"fmt"
+	"github.com/beevik/etree"
+	log "github.com/sirupsen/logrus"
+	snmp "github.com/soniah/gosnmp"
+	"github.com/urfave/cli"
+	"net"
+	"os"
 	"strconv"
 	"time"
-	snmp "github.com/soniah/gosnmp"
-	"github.com/beevik/etree"
-	"net"
-	"github.com/urfave/cli"
-	"os"
 )
 
-
 func main() { // Main always gets called as the entry point
-	log.SetReportCaller(true)
+	log.SetReportCaller(true) // Enable long format logging
 
+	// Setup CLI Info
 	app := cli.NewApp()
 	app.Name = "UptimeParserGo"
 	app.Usage = ""
@@ -25,26 +25,34 @@ func main() { // Main always gets called as the entry point
 
 	// Setup flags here
 	var DebugMode bool
-	var CidrIpAddress string
-	var Snmp string
+	var CidrIpAddress_in string
+	var Snmp_in string
+	var overTime_in int
+
 	flags := []cli.Flag{
 		cli.BoolFlag{
 
 			Name:        "debug, d",
-			Usage:       "enable debug mode",
+			Usage:       "Enable debug mode",
 			Destination: &DebugMode,
 		},
 		cli.StringFlag{
 
 			Name:        "ip, i",
 			Usage:       "IP address to scan",
-			Destination: &CidrIpAddress,
+			Destination: &CidrIpAddress_in,
 		},
 		cli.StringFlag{
 
 			Name:        "snmp, s",
-			Usage:       "SNMP community string",
-			Destination: &Snmp,
+			Usage:       "SNMP community string ('public' default)",
+			Destination: &Snmp_in,
+		},
+		cli.IntFlag{
+
+			Name:        "overTime, o",
+			Usage:       "Time over threshold (24hr default)",
+			Destination: &overTime_in,
 		},
 	}
 
@@ -52,22 +60,46 @@ func main() { // Main always gets called as the entry point
 	app.Commands = []cli.Command{
 		{
 			UseShortOptionHandling: true,
-			Name:    "xml",
-			Aliases: []string{"x"},
-			Usage:   "export as XML",
+			Name:     "xml",
+			Aliases:  []string{"x"},
+			Usage:    "Export as XML",
 			Category: "output",
 			Action: func(c *cli.Context) error {
 
-				output := MainLogic(CidrIpAddress,Snmp)
+				// Set defaults
+				var CidrIpAddress_out string
+				if CidrIpAddress_in == "" {
+					println("IP Address missing from args")
+					os.Exit(1)
+				} else {
+					CidrIpAddress_out = CidrIpAddress_in
+				}
+
+				var overTime_out int
+				if overTime_in == 0 {
+					overTime_out = 24
+				} else {
+					overTime_out = overTime_in
+				}
+
+				var Snmp_out string
+				if Snmp_in == "" {
+					Snmp_out = "public"
+				} else {
+					Snmp_out = Snmp_in
+				}
+
+				// Pass CLI args and run main logic method
+				output := MainLogic(CidrIpAddress_out, Snmp_out, overTime_out)
 				print(output)
 				return nil
 			},
 		},
 		{
 			UseShortOptionHandling: true,
-			Name:    "json",
-			Aliases: []string{"j"},
-			Usage:   "export as JSON",
+			Name:     "json",
+			Aliases:  []string{"j"},
+			Usage:    "export as JSON",
 			Category: "output",
 			Action: func(c *cli.Context) error {
 				args := c.Args()
@@ -89,7 +121,7 @@ func main() { // Main always gets called as the entry point
 		} else {
 			log.SetLevel(3)
 			// open a file
-			f, err := os.OpenFile("uptime.log", os.O_CREATE | os.O_RDWR, 0666) // Create new log file every run
+			f, err := os.OpenFile("uptime.log", os.O_CREATE|os.O_RDWR, 0666) // Create new log file every run
 			//f, err := os.OpenFile("uptime.log", os.O_APPEND | os.O_CREATE | os.O_RDWR, 0666)
 			if err != nil {
 				fmt.Printf("error opening file: %v", err)
@@ -107,21 +139,20 @@ func main() { // Main always gets called as the entry point
 	log.Debug("EOP")
 }
 
-func MainLogic(ip_CIDR_in string, snmp_in string)  string{
+func MainLogic(ip_CIDR_in string, snmp_in string, overTime int) string {
 	// Setup output variables ahead of time
 	var outputToConsole string
 
-
 	// Generate list of IP addresses from console input
 	var IPlist, err = Hosts(ip_CIDR_in)
-	if err != nil{
+	if err != nil {
 		log.Fatal("Invalid IP")
 	}
 
 	// Generate list of devices
 	log.Debug(IPlist)
 	var device_list []Device
-	for _, i := range IPlist{
+	for _, i := range IPlist {
 		x := Device{}
 		x.name = i
 		x.snmp_comm = snmp_in
@@ -133,7 +164,7 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 
 	// Generate device over limit count
 	var device_over_limit int
-	var sec_in_day = uint(60 * 60 * 24)
+	var sec_in_day = uint(60 * 60 * overTime)
 	for _, i := range device_list {
 		if i.up_time_sec > sec_in_day {
 			log.Debug("Overtime - ", i.name)
@@ -149,8 +180,7 @@ func MainLogic(ip_CIDR_in string, snmp_in string)  string{
 	return outputToConsole
 }
 
-
-func UpdateDeviceObjUptimeList(device_list_in []Device) []Device{
+func UpdateDeviceObjUptimeList(device_list_in []Device) []Device {
 	// Make list of channels
 	log.Info("Creating channels")
 	var chan_list []chan Device
@@ -198,7 +228,7 @@ func Hosts(cidr string) ([]string, error) {
 		return nil, err
 	}
 	var mask = cidr[len(cidr)-2:]
-	if mask == "32"{
+	if mask == "32" {
 		var ips []string
 		var singleIp = cidr[:len(cidr)-3]
 		ips = append(ips, singleIp)
@@ -223,12 +253,11 @@ func host_inc(ip net.IP) {
 }
 
 //GenerateXML Takes key value pairs and output XML that PRTG can ingest
-func GenerateXML (data_in map[string]int,msg_in string)string{
+func GenerateXML(data_in map[string]int, msg_in string) string {
 	doc := etree.NewDocument()
 	prtg := doc.CreateElement("prtg")
 
-
-	for k, v := range data_in{
+	for k, v := range data_in {
 		result := prtg.CreateElement("result")
 		chan_ele := result.CreateElement("channel")
 		chan_ele.CreateText(k)
@@ -240,11 +269,11 @@ func GenerateXML (data_in map[string]int,msg_in string)string{
 	text.CreateText(msg_in)
 
 	doc.Indent(0)
-	XmlOutput,_ := doc.WriteToString()
+	XmlOutput, _ := doc.WriteToString()
 	return XmlOutput
 }
 
-func GenerateJSON()  {
+func GenerateJSON() {
 
 }
 
@@ -305,5 +334,3 @@ func (d *Device) GetSNMP(oid_in ...string) interface{} {
 	}
 
 }
-
-
